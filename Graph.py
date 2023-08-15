@@ -165,6 +165,36 @@ class Undirected_Graph(Graph):
         node2.attach(node1)
         for node_index in range(len(self._nodes)):
             self._matrix[node_index].append(int(self._nodes[node_index] in [node1, node2])*weight) # weight value if node a vertice of edge, zero otherwise
+    
+    # find the minimum spanning tree of the graph using Kruskal's algorithm
+    def mst(self) -> set[UEdge]:
+        mst = set()
+        forest = []
+        nodes = set(self._nodes)
+        edges = self._edges.copy()
+        edges.sort(key=lambda x: x.weight)
+        while nodes: # while all nodes not in mst
+            edge = edges.pop(0)
+            node_pair = set(edge.vertices)
+            index = 0
+            if node_pair.issubset(nodes): # both nodes not in mst
+                mst.add(edge)
+                nodes = nodes.difference(node_pair)
+                forest.append(node_pair)
+            else:
+                for tree in forest:
+                    if node_pair.issubset(tree): # both nodes in mst
+                        break
+                    elif node_pair.intersection(tree): # one node in mst
+                        if index: # both nodes in different mst
+                            forest[index] = tree.union(forest.pop(forest.index(tree)))
+                            break
+                        mst.add(edge)
+                        index = forest.index(tree)
+                        forest[index] = tree.union(node_pair)
+                else: # only one node was in mst
+                    nodes = nodes.difference(node_pair)
+        return mst
 
 class Directed_Graph(Graph):
     
