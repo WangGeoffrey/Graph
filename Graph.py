@@ -166,8 +166,23 @@ class Undirected_Graph(Graph):
         for node_index in range(len(self._nodes)):
             self._matrix[node_index].append(int(self._nodes[node_index] in [node1, node2])*weight) # weight value if node a vertice of edge, zero otherwise
     
+    # returns set of connected nodes using depth first search
+    def connected_graph(self, current: Node, visited: Set[Node]):
+        for node in current.neighbors:
+            if node not in visited:
+                visited.add(node)
+                visited = self.connected_graph(node, visited)
+        return visited
+    
+    # check if graph is connected - every pair of nodes connected by some path
+    def is_connected_graph(self) -> bool:
+        visited = self.connected_graph(self.nodes[0], {self.nodes[0]})
+        return visited == set(self._nodes)
+
     # find the minimum spanning tree of the graph using Kruskal's algorithm
     def mst(self) -> set[UEdge]:
+        if not self.is_connected_graph():
+            return None
         mst = set()
         forest = []
         nodes = set(self._nodes)
