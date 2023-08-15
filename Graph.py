@@ -139,9 +139,18 @@ class Graph(ABC):
                 return False
         else:
             return True
-        
+
     def clear(self) -> None:
         self.__init__()
+
+# decorator to not run method if graph is empty
+def empty_graph(func):
+    def wrapper(graph: Graph):
+        if graph.matrix:
+            return func(graph)
+        else:
+            print(f'Graph is empty')
+    return wrapper
 
 class Undirected_Graph(Graph):
     
@@ -180,6 +189,7 @@ class Undirected_Graph(Graph):
         return visited == set(self._nodes)
 
     # find the minimum spanning tree of the graph using Kruskal's algorithm
+    @empty_graph
     def mst(self) -> set[UEdge]:
         if not self.is_connected_graph():
             return None
