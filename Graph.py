@@ -58,8 +58,8 @@ class UEdge(Edge):
     
     # when edge is removed
     def notify(self) -> None:
-        for node in self.vertices:
-            node.update(self.vertices[(self.vertices.index(node)+1)%2])
+        self.vertices[0].update(self.vertices[1])
+        self.vertices[1].update(self.vertices[0])
 
 class DEdge(Edge):
     
@@ -85,11 +85,11 @@ class Graph(ABC):
         pass
     
     @property
-    def nodes(self) -> Set[int]:
+    def nodes(self) -> List[Node]:
         return self._nodes.copy()
     
     @property
-    def edges(self) -> Set[int]:
+    def edges(self) -> List[Edge]:
         return self._edges.copy()
     
     def add_node(self) -> None:
@@ -157,7 +157,7 @@ class Undirected_Graph(Graph):
         for _ in matrix:
             self.add_node()
         for edge_index in range(len(matrix[0])):
-            self.add_edge(*[self._nodes[node_index] for node_index in range(len(matrix)) if matrix[node_index][edge_index]])
+            self.add_edge(*[self._nodes[node_index] for node_index in range(len(matrix)) if (value := matrix[node_index][edge_index]) if (weight := value)]+[weight])
     
     def add_edge(self, node1: Node, node2: Node, weight=1) -> None:
         self._edges.append(UEdge(node1, node2, weight))
