@@ -190,7 +190,7 @@ class Undirected_Graph(Graph):
 
     # find the minimum spanning tree of the graph using Kruskal's algorithm
     @empty_graph
-    def mst(self) -> set[UEdge]:
+    def mst(self) -> Set[UEdge]:
         if not self.is_connected_graph():
             return None
         mst = set()
@@ -220,6 +220,27 @@ class Undirected_Graph(Graph):
                 else: # only one node was in mst
                     nodes = nodes.difference(node_pair)
         return mst
+    
+    # find a hamiltonian cycle in the graph using backtracking algorithm
+    @empty_graph
+    def hamiltonian_cycle(self) -> Set[Edge]:
+        start = self._nodes[0]
+        if cycle := self.h_cycle(start, start, set(self.nodes).difference({start}), set()): # (start node, current node in recursion, set of nodes not visited, set of edges in cycle)
+            return cycle
+    
+    # recursive method for hamiltonian cycle
+    def h_cycle(self, start: Node, current: Node, not_visited: Set[Node], cycle: Set[Edge]):
+        if not not_visited and start in current.neighbors: # if cycle found
+            for edge in self._edges:
+                if set(edge.vertices) == {start, current}:
+                    return cycle.union({edge})
+        else:
+            for node in current.neighbors:
+                if node in not_visited:
+                    for edge in self._edges:
+                        if set(edge.vertices) == {node, current}:
+                            if check := self.h_cycle(start, node, not_visited.difference({node}), cycle.union({edge})):
+                                return check
 
 class Directed_Graph(Graph):
     
