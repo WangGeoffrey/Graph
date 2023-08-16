@@ -139,9 +139,18 @@ class Graph(ABC):
                 return False
         else:
             return True
-        
+
     def clear(self) -> None:
         self.__init__()
+
+# decorator to not run method if graph is empty
+def empty_graph(func):
+    def wrapper(graph: Graph):
+        if graph.matrix:
+            return func(graph)
+        else:
+            print(f'Graph is empty')
+    return wrapper
 
 class Undirected_Graph(Graph):
     
@@ -165,6 +174,52 @@ class Undirected_Graph(Graph):
         node2.attach(node1)
         for node_index in range(len(self._nodes)):
             self._matrix[node_index].append(int(self._nodes[node_index] in [node1, node2])*weight) # weight value if node a vertice of edge, zero otherwise
+    
+    # returns set of connected nodes using depth first search
+    def connected_graph(self, current: Node, visited: Set[Node]):
+        for node in current.neighbors:
+            if node not in visited:
+                visited.add(node)
+                visited = self.connected_graph(node, visited)
+        return visited
+    
+    # check if graph is connected - every pair of nodes connected by some path
+    def is_connected_graph(self) -> bool:
+        visited = self.connected_graph(self.nodes[0], {self.nodes[0]})
+        return visited == set(self._nodes)
+
+    # find the minimum spanning tree of the graph using Kruskal's algorithm
+    @empty_graph
+    def mst(self) -> set[UEdge]:
+        if not self.is_connected_graph():
+            return None
+        mst = set()
+        forest = []
+        nodes = set(self._nodes)
+        edges = self._edges.copy()
+        edges.sort(key=lambda x: x.weight)
+        while nodes: # while all nodes not in mst
+            edge = edges.pop(0)
+            node_pair = set(edge.vertices)
+            index = 0
+            if node_pair.issubset(nodes): # both nodes not in mst
+                mst.add(edge)
+                nodes = nodes.difference(node_pair)
+                forest.append(node_pair)
+            else:
+                for tree in forest:
+                    if node_pair.issubset(tree): # both nodes in mst
+                        break
+                    elif node_pair.intersection(tree): # one node in mst
+                        if index: # both nodes in different mst
+                            forest[index] = tree.union(forest.pop(forest.index(tree)))
+                            break
+                        mst.add(edge)
+                        index = forest.index(tree)
+                        forest[index] = tree.union(node_pair)
+                else: # only one node was in mst
+                    nodes = nodes.difference(node_pair)
+        return mst
 
 class Directed_Graph(Graph):
     
