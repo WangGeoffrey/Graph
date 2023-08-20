@@ -115,6 +115,11 @@ class Graph(ABC):
         self._edges.remove(edge) # remove edge from list of edges
         edge.notify()
     
+    def get_edge(self, node1: Node, node2: Node) -> Edge:
+        for edge in self._edges:
+            if set(edge.vertices) == {node1, node2}:
+                return edge
+    
     def valid_matrix(self, matrix: List[List[int]]) -> bool:
         if not matrix:
             return False
@@ -231,16 +236,12 @@ class Undirected_Graph(Graph):
     # recursive method for hamiltonian cycle
     def h_cycle(self, start: Node, current: Node, not_visited: Set[Node], cycle: Set[Edge]):
         if not not_visited and start in current.neighbors: # if cycle found
-            for edge in self._edges:
-                if set(edge.vertices) == {start, current}:
-                    return cycle.union({edge})
+            return cycle.union({self.get_edge(current, start)})
         else:
             for node in current.neighbors:
                 if node in not_visited:
-                    for edge in self._edges:
-                        if set(edge.vertices) == {node, current}:
-                            if check := self.h_cycle(start, node, not_visited.difference({node}), cycle.union({edge})):
-                                return check
+                    if check := self.h_cycle(start, node, not_visited.difference({node}), cycle.union({self.get_edge(current, node)})):
+                        return check
 
 class Directed_Graph(Graph):
     
