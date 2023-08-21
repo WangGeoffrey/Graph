@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import List, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 # = = = = Observer Design Pattern = = = = 
 
@@ -242,6 +242,38 @@ class Undirected_Graph(Graph):
                 if node in not_visited:
                     if check := self.h_cycle(start, node, not_visited.difference({node}), cycle.union({self.get_edge(current, node)})):
                         return check
+    
+    # find a max matching of the graph using augmenting paths and Berge's Lemma
+    @empty_graph
+    def max_matching(self) -> Set[Edge]:
+        matching = set() # edges in matching
+        exposed = set(self._nodes) # nodes not in matching
+        while len(exposed) > 1: # while two or more nodes not in matching
+            for node in exposed:
+                if path := self.augmenting_path(node, matching, exposed, set(), True): # if augmenting path found
+                    break
+            else:
+                break # no more augmenting paths
+            alternating_path = path.difference(matching)
+            matching = matching.difference(path).union(alternating_path) # switch edges in matching with other edges in path
+            exposed = set(self._nodes)
+            for edge in matching: # check if matching covers all nodes
+                exposed = exposed.difference(set(edge.vertices))
+        return matching
+    
+    # recursive method for finding augmenting path
+    # label = True if current node after traversed edge in matching (or start node)
+    # label = False if current node after traversed edge not in matching
+    def augmenting_path(self, current: Node, matching: Set[Edge], exposed: Set[Node], path: Set[Edge], label: bool) -> Set[Edge]:
+        for node in current.neighbors:
+            edge = self.get_edge(current, node)
+            if edge not in path: # check for loop
+                if label and node in exposed: # augmenting path found
+                    return path.union({edge})
+                elif label or edge in matching: # check if alternating edge (alternate between edge in matching and edge not in matching)
+                    if result := self.augmenting_path(node, matching, exposed, path.union({edge}), not label):
+                        return result
+        return None
 
 class Directed_Graph(Graph):
     
