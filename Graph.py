@@ -274,6 +274,35 @@ class Undirected_Graph(Graph):
                     if result := self.augmenting_path(node, matching, exposed, path.union({edge}), not label):
                         return result
         return None
+    
+    # recursive method for finding augmenting path using blossom algorithm
+    def augmenting_pathB(self, current: Node, matching: Set[Edge], exposed: Set[Node], path: List[Edge], label: Dict[Node, bool]):
+        for node in current.neighbors:
+            edge = self.get_edge(current, node)
+            if label[current] and node in exposed: # if augmenting path found
+                return set(path + [edge])
+            if label[current] or edge in matching: # if alternating edge
+                if edge not in path: # if adding edge does not introduce a cycle
+                    label.update({node: not label[current]})
+                    if result := self.augmenting_pathB(node, matching, exposed, path + [edge], label): # if augmenting path found
+                        return result
+                    label.pop(node)
+                if label[node] == label[current]: # if blossom encountered
+                    blossom = {current} # set of nodes in blossom
+                    contracted_path = path.copy() # path in contrated graph
+                    # remove edges part of blossom from contracted graph path
+                    for path_edge in path[::-2]:
+                        contracted_path.pop(-1)
+                        blossom.union(set(contracted_path.pop(-1).vertices))
+                        if node in set(path_edge.vertices): # if blossom removed
+                            break
+                    contracted_node = Node() # node of contracted blossom
+                    for vertex in blossom:
+                        for neighbor in vertex.neighbors:
+                            contracted_node.attach(neighbor)
+                    # start new recursion with contracted graph (remove nodes in blossom from exposed)
+                    if result := self.augmenting_pathB(contracted_node, matching, exposed.difference(blossom), contracted_path, label):
+                        return result.union(set(path))
 
 class Directed_Graph(Graph):
     
