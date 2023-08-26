@@ -276,33 +276,53 @@ class Undirected_Graph(Graph):
         return None
     
     # recursive method for finding augmenting path using blossom algorithm
-    def augmenting_pathB(self, current: Node, matching: Set[Edge], exposed: Set[Node], path: List[Edge], label: Dict[Node, bool]):
+    # blossom - an odd-length cycle
+    def augmenting_pathB(self, current: Node, matching: Set[Edge], exposed: Set[Node], path: List[Edge], label: Dict[Node, bool], blossom=None) -> List[Edge]:
         for node in current.neighbors:
-            edge = self.get_edge(current, node)
-            if label[current] and node in exposed: # if augmenting path found
-                return set(path + [edge])
-            if label[current] or edge in matching: # if alternating edge
-                if edge not in path: # if adding edge does not introduce a cycle
-                    label.update({node: not label[current]})
-                    if result := self.augmenting_pathB(node, matching, exposed, path + [edge], label): # if augmenting path found
-                        return result
-                    label.pop(node)
-                if label[node] == label[current]: # if blossom encountered
+            if blossom: # if current node a contracted blossom
+                # get edge from node in contracted blossom
+                blossom_node = blossom.intersection(node.neighbors).pop()
+                edge = self.get_edge(blossom_node, node)
+                current = blossom_node
+            else:
+                edge = self.get_edge(current, node)
+            if node in label: # if node covered by path
+                if label[current] & label[node]: # if blossom encountered
                     blossom = {current} # set of nodes in blossom
                     contracted_path = path.copy() # path in contrated graph
-                    # remove edges part of blossom from contracted graph path
+                    # remove edges in blossom from contracted graph path
                     for path_edge in path[::-2]:
-                        contracted_path.pop(-1)
-                        blossom.union(set(contracted_path.pop(-1).vertices))
                         if node in set(path_edge.vertices): # if blossom removed
                             break
+                        contracted_path.pop(-1)
+                        blossom = blossom.union(set(contracted_path.pop(-1).vertices))
                     contracted_node = Node() # node of contracted blossom
                     for vertex in blossom:
                         for neighbor in vertex.neighbors:
-                            contracted_node.attach(neighbor)
-                    # start new recursion with contracted graph (remove nodes in blossom from exposed)
-                    if result := self.augmenting_pathB(contracted_node, matching, exposed.difference(blossom), contracted_path, label):
-                        return result.union(set(path))
+                            if neighbor not in blossom:
+                                contracted_node.attach(neighbor)
+                    # start new recursion with contracted graph
+                    if result := self.augmenting_pathB(contracted_node, matching, exposed, contracted_path, label, blossom):
+                        index = len(contracted_path) # index of edge before contraction
+                        new_edge = result[index] # edge added after contraction
+                        # add edges from blossom to contracted path to complete uncontracted path
+                        for count, blossom_edge in enumerate(path[index:]):
+                            # check direction path takes to connect outer vertice of matched edge in blossom to edge after contraction
+                            if set(new_edge.vertices).intersection(blossom_edge.vertices):
+                                if blossom_edge in matching:
+                                    connecting_path = path[index:index + count+1]
+                                else:
+                                    connecting_path = path[:index + count:-1]
+                                break
+                        return result[:index] + connecting_path + result[index:]
+                continue # adding edge will introduce cycle, check next edge
+            if label[current] and node in exposed: # if augmenting path found
+                return path + [edge]
+            if label[current] or edge in matching: # if alternating edge
+                label.update({node: not label[current]})
+                if result := self.augmenting_pathB(node, matching, exposed, path + [edge], label): # if augmenting path found
+                    return result
+                label.pop(node)
 
 class Directed_Graph(Graph):
     
