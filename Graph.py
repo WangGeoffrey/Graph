@@ -248,32 +248,30 @@ class Undirected_Graph(Graph):
     def max_matching(self) -> Set[Edge]:
         matching = set() # edges in matching
         exposed = set(self._nodes) # nodes not in matching
-        while len(exposed) > 1: # while two or more nodes not in matching
+        while exposed: # while there are unmatched nodes
             for node in exposed:
-                if path := self.augmenting_path(node, matching, exposed, set(), True): # if augmenting path found
+                if path := self.augmenting_path(node, matching, exposed, [], True): # if augmenting path found
                     break
             else:
                 break # no more augmenting paths
-            alternating_path = path.difference(matching)
-            matching = matching.difference(path).union(alternating_path) # switch edges in matching with other edges in path
-            exposed = set(self._nodes)
-            for edge in matching: # check if matching covers all nodes
-                exposed = exposed.difference(set(edge.vertices))
+            alternating_path = set(path).difference(matching) # remove edges in matching from path to get alternating path
+            matching = matching.difference(set(path)).union(alternating_path) # xor edges in matching with edges in alternating path
+            exposed.remove(node)
+            exposed = exposed.difference(set(path[-1].vertices))
         return matching
     
     # recursive method for finding augmenting path
-    # label = True if current node after traversed edge in matching (or start node)
-    # label = False if current node after traversed edge not in matching
-    def augmenting_path(self, current: Node, matching: Set[Edge], exposed: Set[Node], path: Set[Edge], label: bool) -> Set[Edge]:
+    # label = True if start node or edge connecting node to path is in matching
+    # label = False if edge connecting node to path is not in matching
+    def augmenting_path(self, current: Node, matching: Set[Edge], exposed: Set[Node], path: Set[Edge], label: bool) -> List[Edge]:
         for node in current.neighbors:
             edge = self.get_edge(current, node)
-            if edge not in path: # check for loop
-                if label and node in exposed: # augmenting path found
-                    return path.union({edge})
-                elif label or edge in matching: # check if alternating edge (alternate between edge in matching and edge not in matching)
-                    if result := self.augmenting_path(node, matching, exposed, path.union({edge}), not label):
+            if label and node in exposed: # if augmenting path found
+                return path + [edge]
+            if label or edge in matching: # if alternating edge
+                if edge not in path: # if adding edge does not cause a cycle
+                    if result := self.augmenting_path(node, matching, exposed, path + [edge], not label): # if augmenting path found
                         return result
-        return None
     
     # recursive method for finding augmenting path using blossom algorithm
     # blossom - an odd-length cycle
