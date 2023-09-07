@@ -90,9 +90,9 @@ class Graph(ABC):
             edge.index -= 1
     
     def get_edge(self, node1: Node, node2: Node) -> Edge:
-        for edge in self._edges:
-            if set(edge.vertices) == {node1, node2}:
-                return edge
+        # and matrix rows of nodes to get index of connecting edge
+        edge_index = [a&b for a, b in zip(self._matrix[node1.index], self._matrix[node2.index])].index(1)
+        return self._edges[edge_index]
     
     def valid_matrix(self, matrix: List[List[int]]) -> bool:
         if not matrix:
@@ -152,7 +152,7 @@ class Undirected_Graph(Graph):
         node1.attach(node2)
         node2.attach(node1)
         for node_index in range(len(self._nodes)):
-            self._matrix[node_index].append(int(self._nodes[node_index] in [node1, node2])*weight) # weight value if node a vertice of edge, zero otherwise
+            self._matrix[node_index].append(int(self._nodes[node_index] in [node1, node2])) # 1 if node a vertice of edge, zero otherwise
     
     # returns set of connected nodes using depth first search
     def connected_graph(self, current: Node, visited: Set[Node]):
@@ -278,8 +278,8 @@ class Directed_Graph(Graph):
         for node_index, node in enumerate(self._nodes):
             if node in [node1, node2]:
                 if node == node2:
-                    self._matrix[node_index].append(weight) # entering node
+                    self._matrix[node_index].append(1) # entering node
                 else:
-                    self._matrix[node_index].append(-weight) # leaving node
+                    self._matrix[node_index].append(-1) # leaving node
             else:
                 self._matrix[node_index].append(0)
