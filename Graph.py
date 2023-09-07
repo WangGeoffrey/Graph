@@ -2,35 +2,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Dict, List, Set, Tuple
 
-# = = = = Observer Design Pattern = = = = 
-
-class Fixed_Subject(ABC):
+class Node():
     
-    @abstractmethod
-    def notify(self) -> None:
-        pass
-
-class Subject(Fixed_Subject):
-    
-    @abstractmethod
-    def attach(self, observer: Observer) -> None:
-        pass
-    
-    @abstractmethod
-    def dettach(self, observer: Observer) -> None:
-        pass
-    
-class Observer(ABC):
-    
-    @abstractmethod
-    def update(self, subject: Subject) -> None:
-        pass
-
-# = = = = Observer Design Pattern = = = = 
-
-class Node(Subject, Observer):
-    
-    def __init__(self) -> None:
+    def __init__(self, index: int) -> None:
+        self.index = index
         self.neighbors: Set[Node] = set()
     
     def attach(self, observer: Node) -> None:
@@ -38,34 +13,30 @@ class Node(Subject, Observer):
     
     def dettach(self, observer: Node) -> None:
         self.neighbors.remove(observer)
-    
-    # when node is removed
-    def notify(self) -> None:
-        for node in self.neighbors:
-            node.update(self)
-    
-    # update from removed node/edge
-    def update(self, subject: Node) -> None:
-        self.dettach(subject)
 
-class Edge(Fixed_Subject):
+class Edge():
     
-    def __init__(self, node1: Node, node2: Node, weight) -> None:
+    def __init__(self, node1: Node, node2: Node, index: int, weight: int) -> None:
+        self.index = index
         self.vertices: Tuple[Node, Node] = (node1, node2) # for directed edge: (leaving node, entering node)
         self.weight = weight
+    
+    @abstractmethod
+    def remove(self) -> None:
+        pass
 
 class UEdge(Edge):
     
     # when edge is removed
-    def notify(self) -> None:
-        self.vertices[0].update(self.vertices[1])
-        self.vertices[1].update(self.vertices[0])
+    def remove(self) -> None:
+        self.vertices[0].dettach(self.vertices[1])
+        self.vertices[1].dettach(self.vertices[0])
 
 class DEdge(Edge):
     
     # when edge is removed
-    def notify(self) -> None:
-        self.vertices[0].update(self.vertices[1])
+    def remove(self) -> None:
+        self.vertices[0].dettach(self.vertices[1])
 
 class Graph(ABC):
     
@@ -93,7 +64,7 @@ class Graph(ABC):
         return self._edges.copy()
     
     def add_node(self) -> None:
-        self._nodes.append(Node())
+        self._nodes.append(Node(len(self._nodes)))
         self._matrix.append([0] * len(self._edges))
     
     def remove_node(self, node: Node) -> None:
@@ -102,7 +73,8 @@ class Graph(ABC):
             if node_row[edge_index]: # true if edge connecting another node
                 self.remove_edge(self._edges[edge_index])
         self._nodes.remove(node) # remove node from list of nodes
-        node.notify()
+        for node in self._nodes[node.index:]:
+            node.index -= 1
     
     @abstractmethod
     def add_edge(self, edge: Edge) -> None:
@@ -113,12 +85,14 @@ class Graph(ABC):
         for node_row in self._matrix:
             node_row.pop(edge_index) # remove edge in matrix
         self._edges.remove(edge) # remove edge from list of edges
-        edge.notify()
+        edge.remove()
+        for edge in self._edges[edge.index:]:
+            edge.index -= 1
     
     def get_edge(self, node1: Node, node2: Node) -> Edge:
-        for edge in self._edges:
-            if set(edge.vertices) == {node1, node2}:
-                return edge
+        # and matrix rows of nodes to get index of connecting edge
+        edge_index = [a&b for a, b in zip(self._matrix[node1.index], self._matrix[node2.index])].index(1)
+        return self._edges[edge_index]
     
     def valid_matrix(self, matrix: List[List[int]]) -> bool:
         if not matrix:
@@ -174,11 +148,11 @@ class Undirected_Graph(Graph):
             self.add_edge(*[self._nodes[node_index] for node_index in range(len(matrix)) if (value := matrix[node_index][edge_index]) if (weight := value)]+[weight])
     
     def add_edge(self, node1: Node, node2: Node, weight=1) -> None:
-        self._edges.append(UEdge(node1, node2, weight))
+        self._edges.append(UEdge(node1, node2, len(self._edges), weight))
         node1.attach(node2)
         node2.attach(node1)
         for node_index in range(len(self._nodes)):
-            self._matrix[node_index].append(int(self._nodes[node_index] in [node1, node2])*weight) # weight value if node a vertice of edge, zero otherwise
+            self._matrix[node_index].append(int(self._nodes[node_index] in [node1, node2])) # 1 if node a vertice of edge, zero otherwise
     
     # returns set of connected nodes using depth first search
     def connected_graph(self, current: Node, visited: Set[Node]):
@@ -295,7 +269,7 @@ class Undirected_Graph(Graph):
                         new_blossom = new_blossom.union(set(contracted_path.pop(-1).vertices))
                     if blossom:
                         new_blossom = new_blossom.union(blossom)
-                    contracted_node = Node() # node of contracted blossom
+                    contracted_node = Node(-1) # node of contracted blossom
                     neighbors = set()
                     for vertex in new_blossom:
                         neighbors = neighbors.union(vertex.neighbors)
@@ -353,13 +327,13 @@ class Directed_Graph(Graph):
             self.add_edge(node1, node2, weight)
     
     def add_edge(self, node1: Node, node2: Node, weight=1) -> None:
-        self._edges.append(DEdge(node1, node2, weight))
+        self._edges.append(DEdge(node1, node2, len(self._edges), weight))
         node1.attach(node2)
-        for node_index in range(len(self._nodes)):
-            if node := self._nodes[node_index] in [node1, node2]:
+        for node_index, node in enumerate(self._nodes):
+            if node in [node1, node2]:
                 if node == node2:
-                    self._matrix[node_index].append(weight) # entering node
+                    self._matrix[node_index].append(1) # entering node
                 else:
-                    self._matrix[node_index].append(-weight) # leaving node
+                    self._matrix[node_index].append(-1) # leaving node
             else:
                 self._matrix[node_index].append(0)
