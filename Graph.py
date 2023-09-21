@@ -1,6 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Dict, List, Set, Tuple
+from functools import reduce
 
 class Node():
     
@@ -224,7 +225,8 @@ class Undirected_Graph(Graph):
         exposed = set(self._nodes) # nodes not in matching
         while exposed: # while there are unmatched nodes
             for node in exposed:
-                if path := self.augmenting_pathB(node, matching, exposed, [], {node: True}): # if augmenting path found
+                # if path := self.augmenting_pathB(node, matching, exposed, [], {node: True}): # if augmenting path found
+                if path := self.augment_blossom(node.index, list(range(len(self._nodes))), matching, {n.index for n in exposed}, self.matrix):
                     break
             else:
                 break # no more augmenting paths
@@ -302,6 +304,68 @@ class Undirected_Graph(Graph):
                 if result := self.augmenting_pathB(node, matching, exposed, path + [edge], label, blossom): # if augmenting path found
                     return result
                 label.pop(node)
+
+    # current node, matching, exposed, path, label, nodes in current instance, bit matrix representing current instance
+    def augment_blossom(self, current: int, nodes: List[int], matching: Set[Edge], exposed: Set[int], matrix: List[List[int]]) -> List[Edge]:
+        start = current
+        label = {current: True}
+        path: List[Edge] = []
+        key = None
+        while True:
+            if current != key: # if next edge
+                # & matrix rows of other nodes with matrix row of current node to get nodes which share an edge (neighbors of current node)
+                skip = nodes.index(current) # exclude checking with itself
+                neighbors = (n for n in nodes[:skip] + nodes[skip+1:] if 1 in [a&b for a, b in zip(matrix[current], matrix[n])]) # generator of valid neighbors of current node
+                key = current
+            if (node := next(neighbors, None)) == None: # if no other neighbors
+                return None
+            edge = self._edges[[a&b for a, b in zip(matrix[current], matrix[node])].index(1)]
+            if node in label: # if visited node
+                if not (label[current] and label[node]): # if not a blossom (label of nodes are not both True)
+                    continue # edge in path, check another edge
+                # get nodes and edges in blossom
+                blossom = {node} # set of nodes in blossom
+                for path_edge in path[::-2]:
+                    blossom = blossom.union({n.index for n in path_edge.vertices})
+                    if matrix[node][path_edge.index]: # if node is a vertex of edge (entire blossom found)
+                        blossom_edges = path[path.index(path_edge):] # list of edges in blossom
+                        break
+                # xor matrix row of nodes in blossom to get matrix row of contracted node
+                contracted = [0] * len(self._edges)
+                for node_index in blossom:
+                    contracted = [a^b for a, b in zip(contracted, matrix[node_index])]
+                matrix.insert(len(self._nodes), contracted)
+                if start in blossom: # if start node in blossom
+                    start = len(self._nodes) # make recursive call with blossom node
+                if not (result := self.augment_blossom(start, [n for n in nodes if n not in blossom] + [len(self._nodes)], matching, exposed, matrix)): # if augmenting path not found
+                    return None
+                #     c-d=e     Edges part of matching a=b, d=e and g=h
+                # 0-a=b<  |     When uncontracting blossom, find if path goes cw or ccw
+                #     f-g=h     e.g. c exposed - then 0-a-b-g-h-e-d-c (ccw) | f exposed - then 0-a-b-d-e-h-g-f (cw)
+                
+                # check if gap in path caused by uncontracted blossom
+                for index in range(len(result)-1):
+                    if not set(result[index].vertices).intersection(set(result[index+1].vertices)): # if edges are not connected
+                        index += 1
+                        node1, node2 = result[index].vertices
+                        temp = node1 if node2 in result[index+1].vertices else node2
+                        # complete path with edges in blossom
+                        for path_edge in result:
+                            if temp in path_edge.vertices:
+                                if label[temp.index]:
+                                    connecting_path = blossom_edges[:blossom_edges.index(path_edge)]
+                                else:
+                                    connecting_path = blossom_edges[blossom_edges.index(path_edge):]
+                                return result[index-1:] + connecting_path + result[:index-1]
+                else:
+                    return result # no gap in path caused by blossom
+            elif label[current] and node in exposed: # if augmenting path found
+                return path + [edge] # return augmenting path
+            elif label[current] or edge in matching: # if alternating edge
+                # update path with edge
+                label.update({node: not label[current]})
+                path.append(edge)
+                current = node
 
 class Directed_Graph(Graph):
     
