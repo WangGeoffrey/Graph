@@ -221,19 +221,29 @@ class Undirected_Graph(Graph):
     # find a max matching of the graph using augmenting paths and Berge's Lemma
     @empty_graph
     def max_matching(self) -> Set[Edge]:
-        matching = set() # edges in matching
+        matching: Set[Edge] = set() # edges in matching
         exposed = set(self._nodes) # nodes not in matching
         while exposed: # while there are unmatched nodes
-            for node in exposed:
-                # if path := self.augmenting_pathB(node, matching, exposed, [], {node: True}): # if augmenting path found
-                if path := self.augment_blossom(node.index, list(range(len(self._nodes))), matching, {n.index for n in exposed}, self.matrix):
-                    break
+            # for node in exposed:
+            #     # if path := self.augmenting_pathB(node, matching, exposed, [], {node: True}): # if augmenting path found
+            #     if path := self.augment_blossom(node.index, list(range(len(self._nodes))), matching, {n.index for n in exposed}, self.matrix):
+            #         break
+            # else:
+            #     break # no more augmenting paths
+            # alternating_path = set(path).difference(matching) # remove edges in matching from path to get alternating path
+            # matching = matching.difference(set(path)).union(alternating_path) # xor edges in matching with edges in alternating path
+            # exposed.remove(node)
+            # exposed = exposed.difference(set(path[-1].vertices))
+            
+            if not (path := self.aug_path(matching, exposed)): # if no more augmenting paths
+                break
+            exposed = exposed.difference(set(path[0].vertices))
+            if len(path) == 1:
+                matching.add(path[0])
             else:
-                break # no more augmenting paths
-            alternating_path = set(path).difference(matching) # remove edges in matching from path to get alternating path
-            matching = matching.difference(set(path)).union(alternating_path) # xor edges in matching with edges in alternating path
-            exposed.remove(node)
-            exposed = exposed.difference(set(path[-1].vertices))
+                exposed = exposed.difference(set(path[-1].vertices))
+                alternating_path = set(path).difference(matching) # remove edges in matching from path to get alternating path
+                matching = matching.difference(set(path)).union(alternating_path) # xor edges in matching with edges in alternating path
         return matching
     
     # recursive method for finding augmenting path
@@ -366,6 +376,32 @@ class Undirected_Graph(Graph):
                 label.update({node: not label[current]})
                 path.append(edge)
                 current = node
+
+    def aug_path(self, matching: Set[Edge], exposed: Set[Node]) -> List[Edge]:
+        marked: Dict[Node, Tuple[Node, Node]] = {} # key = node, value = tuple(previous node, root node)
+        stack: List[Node] = []
+        for node in exposed:
+            marked.update({node: (None, node)})
+            stack.append(node)
+            while stack: # while there are branches of tree with exposed node as root
+                node = stack.pop(-1)
+                for neighbor in node.neighbors:
+                    if neighbor in exposed and marked[node] != neighbor: # if path found
+                        # construct path to return
+                        path = []
+                        while node is not None:
+                            path.append(self.get_edge(node, neighbor))
+                            neighbor, node = node, marked[node][0]
+                        return path
+                    if neighbor not in marked: # if neighbor not in tree
+                        # add pair of alternating edges
+                        for edge in matching:
+                            if neighbor in edge.vertices: # if neighbor a vertice of edge in matching
+                                next = edge.vertices[(edge.vertices.index(neighbor)+1)%2] # get next node following edge in matching
+                                break
+                        marked.update({neighbor: (node, marked[node][1])})
+                        marked.update({next: (neighbor, marked[neighbor][1])})
+                        stack.append(next)
 
 class Directed_Graph(Graph):
     
