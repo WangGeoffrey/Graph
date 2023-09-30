@@ -1,7 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Dict, List, Set, Tuple
-from functools import reduce
 
 class Node():
     
@@ -153,7 +152,7 @@ class Undirected_Graph(Graph):
         node1.attach(node2)
         node2.attach(node1)
         for node_index in range(len(self._nodes)):
-            self._matrix[node_index].append(int(self._nodes[node_index] in [node1, node2])) # 1 if node a vertice of edge, zero otherwise
+            self._matrix[node_index].append(int(self._nodes[node_index] in [node1, node2])) # 1 if node a vertex of edge, zero otherwise
     
     # returns set of connected nodes using depth first search
     def connected_graph(self, current: Node, visited: Set[Node]):
@@ -225,8 +224,9 @@ class Undirected_Graph(Graph):
         exposed = set(self._nodes) # nodes not in matching
         while exposed: # while there are unmatched nodes
             # for node in exposed:
+            #     # if path := self.augmenting_path(node, matching, exposed, [], {node: True}):
             #     # if path := self.augmenting_pathB(node, matching, exposed, [], {node: True}): # if augmenting path found
-            #     if path := self.augment_blossom(node.index, list(range(len(self._nodes))), matching, {n.index for n in exposed}, self.matrix):
+            #     # if path := self.augment_blossom(node.index, list(range(len(self._nodes))), matching, {n.index for n in exposed}, self.matrix):
             #         break
             # else:
             #     break # no more augmenting paths
@@ -235,17 +235,22 @@ class Undirected_Graph(Graph):
             # exposed.remove(node)
             # exposed = exposed.difference(set(path[-1].vertices))
             
-            if not (path := self.aug_path(matching, exposed)): # if no more augmenting paths
+            # if not (path := self.aug_path(matching, exposed)): # if no more augmenting paths
+            if not (path := self.aug_pathB(list(range(len(self._nodes))), self.matrix, matching, {n.index for n in exposed})):
                 break
-            exposed = exposed.difference(set(path[0].vertices))
-            if len(path) == 1:
-                matching.add(path[0])
-            else:
-                exposed = exposed.difference(set(path[-1].vertices))
-                alternating_path = set(path).difference(matching) # remove edges in matching from path to get alternating path
-                matching = matching.difference(set(path)).union(alternating_path) # xor edges in matching with edges in alternating path
+            # remove newly matched nodes from exposed
+            exposed.remove(self._nodes[path[0]])
+            exposed.remove(self._nodes[path[-1]])
+            current = path[0]
+            # convert list of node indices to edges
+            edge_path = []
+            for node in path[1:]:
+                edge_path.append(self.get_edge(self._nodes[current], self._nodes[node]))
+                current = node
+            matching ^= set(edge_path) # xor edges in matching with edges in path
         return matching
     
+    # Issue - does not consider case where path starts and ends with same node (cycle)
     # recursive method for finding augmenting path
     # label = True if start node or edge connecting node to path is in matching
     # label = False if edge connecting node to path is not in matching
@@ -259,6 +264,7 @@ class Undirected_Graph(Graph):
                     if result := self.augmenting_path(node, matching, exposed, path + [edge], not label): # if augmenting path found
                         return result
     
+    # Issue - does not consider case of multiple separate blossoms
     # recursive method for finding augmenting path using blossom algorithm
     # blossom - an odd-length cycle
     def augmenting_pathB(self, current: Node, matching: Set[Edge], exposed: Set[Node], path: List[Edge], label: Dict[Node, bool], blossom=None) -> List[Edge]:
@@ -298,7 +304,7 @@ class Undirected_Graph(Graph):
                         new_edge = result[index] # edge added after contraction
                         # add edges from blossom to contracted path to complete uncontracted path
                         for count, blossom_edge in enumerate(path[index:]):
-                            # check direction path takes to connect outer vertice of matched edge in blossom to edge after contraction
+                            # check direction path takes to connect outer vertex of matched edge in blossom to edge after contraction
                             if set(new_edge.vertices).intersection(blossom_edge.vertices):
                                 if blossom_edge in matching:
                                     connecting_path = path[index:index + count+1]
@@ -315,6 +321,8 @@ class Undirected_Graph(Graph):
                     return result
                 label.pop(node)
 
+    # Issue - does not consider case where path starts and ends with same node (cycle)
+    #       - does not check multiple branches from root
     # current node, matching, exposed, path, label, nodes in current instance, bit matrix representing current instance
     def augment_blossom(self, current: int, nodes: List[int], matching: Set[Edge], exposed: Set[int], matrix: List[List[int]]) -> List[Edge]:
         start = current
@@ -396,12 +404,140 @@ class Undirected_Graph(Graph):
                     if neighbor not in marked: # if neighbor not in tree
                         # add pair of alternating edges
                         for edge in matching:
-                            if neighbor in edge.vertices: # if neighbor a vertice of edge in matching
+                            if neighbor in edge.vertices: # if neighbor a vertex of edge in matching
                                 next = edge.vertices[(edge.vertices.index(neighbor)+1)%2] # get next node following edge in matching
                                 break
                         marked.update({neighbor: (node, marked[node][1])})
                         marked.update({next: (neighbor, marked[neighbor][1])})
                         stack.append(next)
+
+    #             | node in tree    | node not in tree
+    #-------------+-----------------+------------------
+    #             | label[node] = 0 |
+    #  node in    | L> blossom      | add node and
+    #  matching   | label[node] = 1 | matched node
+    #             | L> skip       Q1|Q2
+    #-------------+-----------------+------------------
+    #             | root_node     Q3|Q4
+    #  node not   | L> cycle/       | exposed node
+    # in matching |    blossom      | L> path found
+    #             |                 |
+    
+    def aug_pathB(self, nodes: List[int], matrix: List[List[int]], matching: Set[Edge], exposed: Set[int]) -> List[int]:
+        stack: List[List[int, List[int], int]] = [] # List[List[node, list[neighbors of node], pointer to node in neighbor list]]
+        forest: Dict[int, Tuple[int, int]] = {} # Dict[node, Tuple[Previous node (None if root), distance from root]]
+        for root in exposed:
+            forest.update({root: (None, 0)})
+            skip = nodes.index(root) # skip self when calculating neighbors
+            stack.append([root, [n for n in nodes[:skip] + nodes[skip+1:] if 1 in [a&b for a, b in zip(matrix[root], matrix[n])]], 0])
+            while stack: # while there are branches of tree with exposed node as root
+                node, neighbors, pointer = stack[-1]
+                if pointer >= len(neighbors): # if all neighbors explored
+                    stack.pop(-1)
+                    continue
+                neighbor = neighbors[pointer]
+                stack[-1][2] += 1
+                # Q4
+                if neighbor in exposed and neighbor != root: # if path found (neighbor not matched and path not a cycle)
+                    # construct path to return
+                    path = [neighbor]
+                    while node is not None: # while root has not been added
+                        path.insert(0, node)
+                        node = forest[node][0]
+                    return path
+                # Q2
+                if neighbor not in forest: # if neighbor not in tree
+                    # add pair of alternating edges
+                    for edge in matching:
+                        if matrix[neighbor][edge.index]: # if neighbor a vertex of edge
+                            for n in nodes:
+                                if matrix[n][edge.index] and neighbor != n: # if n a vertex of edge
+                                    next_node = n # n next node following edge in matching
+                                    break
+                            break
+                    forest.update({neighbor: (node, forest[node][1]+1)})
+                    forest.update({next_node: (neighbor, forest[neighbor][1]+1)})
+                    skip = nodes.index(next_node) # skip self when calculating neighbors
+                    stack.append([next_node, [n for n in nodes[:skip] + nodes[skip+1:] if 1 in [a&b for a, b in zip(matrix[next_node], matrix[n])]], 0])
+                    continue
+                # Q1/Q3
+                if not forest[neighbor][1]%2: # if neighbor an even distance from root
+                    # get list of nodes in blossom
+                    blossom = [neighbor]
+                    while node not in blossom:
+                        blossom.append(node)
+                        node = forest[node][0]
+                        blossom.append(node)
+                        node = forest[node][0]
+                    # xor blossom node rows in matrix to get contracted node row
+                    contracted = matrix[blossom[0]]
+                    for node_index in blossom[1:]:
+                        contracted = [a^b for a, b in zip(contracted, matrix[node_index])]
+                    matrix.append(contracted)
+                    blossom_node = len(matrix)-1 # index of contracted node
+                    new_exposed = exposed
+                    if root in blossom: # if blossom contains an exposed node
+                        new_exposed = exposed ^ {root, blossom_node} # replace root in exposed with blossom containing root
+                    if not (path := self.aug_pathB([n for n in nodes if n not in blossom] + [blossom_node], matrix, matching, new_exposed)): # if no path returned
+                        return None
+                    if blossom_node not in path: # return path if it does not contain blossom 
+                        return path
+                    blossom_index = path.index(blossom_node) # index of blossom in path
+                    if blossom_index == 0: # if blossom is first in path
+                        for n in blossom:
+                            if 1 in [a&b for a, b in zip(matrix[path[1]], matrix[n])]:
+                                neighbor_node = n # neighbor of path[1] in blossom
+                                break
+                        if neighbor_node == root: # if root node connected to path
+                            return [root] + path[1:]
+                        blossom.pop(0)
+                        neighbor_node = blossom.index(neighbor_node)
+                        if not blossom.index(n)%2: # if node even distance from root node
+                            blossom.reverse()
+                            return [root] + blossom[:len(blossom) - neighbor_node] + path[1:]
+                        return [root] + blossom[:neighbor_node+1] + path[1:]
+                    if blossom_index == len(path)-1: # if blossom is last in path
+                        for n in blossom:
+                            if 1 in [a&b for a, b in zip(matrix[path[-2]], matrix[n])]:
+                                neighbor_node = n # neighbor of path[-2] in blossom
+                                break
+                        if neighbor_node == root: # if root node connected to path
+                            return [root] + path[1:]
+                        blossom.pop(0)
+                        neighbor_node = blossom.index(neighbor_node)
+                        if blossom.index(n)%2: # if node even distance from root node
+                            blossom.reverse()
+                            return path[:-1] + blossom[len(blossom) - neighbor_node - 1:] + [root]
+                        return path[:-1] + blossom[neighbor_node:] + [root]
+                    # else, blossom somewhere in middle of path
+                    node_before_blossom = path[blossom_index-1]
+                    node_after_blossom = path[blossom_index+1]
+                    # get nodes in blossom connected to path
+                    for n in blossom:
+                        if 1 in (check := [a&b for a, b in zip(matrix[node_before_blossom], matrix[n])]):
+                            before_neighbor = n
+                            if self._edges[check.index(1)] in matching: # if edge connected to root of blossom
+                                break
+                    for n in blossom:
+                        if 1 in (check := [a&b for a, b in zip(matrix[node_after_blossom], matrix[n])]):
+                            after_neighbor = n
+                            if self._edges[check.index(1)] in matching: # if edge connected to root of blossom
+                                break
+                    before_index = blossom.index(before_neighbor) - 1
+                    after_index = blossom.index(after_neighbor) - 1
+                    root = blossom.pop(0)
+                    neighbor_index = before_index if after_index == -1 else after_index
+                    if neighbor_index == -1: # if root node only node from blossom in path
+                        return path[:blossom_index] + [root] + path[blossom_index+1:]
+                    connecting_path = []
+                    if not (blossom.index(after_neighbor)%2 or (path.index(node_after_blossom)+1)%2): # if node after blossom and neighbor in blossom both even distance from thier root node
+                        blossom.reverse()
+                        connecting_path = blossom[:len(blossom) - neighbor_index]
+                    else:
+                        connecting_path = blossom[:neighbor_index+1]
+                    if before_index < 0: # if node in path before blossom neighbors with root node of blossom
+                        return path[:blossom_index] + [root] + connecting_path + path[blossom_index+1:]
+                    return path[:blossom_index] + connecting_path + [root] + path[blossom_index+1:]
 
 class Directed_Graph(Graph):
     
